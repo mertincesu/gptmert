@@ -1,0 +1,11 @@
+langchain
+langchain_community
+langchain_openai
+sentence_transformers
+pypdf
+chromadb
+openai
+streamlit
+firebase-admin
+python-dotenv
+pysqlite3-binary
