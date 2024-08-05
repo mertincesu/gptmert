@@ -6,6 +6,7 @@ import os
 import json
 import streamlit as st
 from langchain_openai import OpenAI
+from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
 from langchain.document_loaders import PyPDFLoader
 from langchain.indexes import VectorstoreIndexCreator
@@ -39,15 +40,17 @@ if not firebase_admin._apps:
 db = firestore.client()
 
 os.environ['OPENAI_API_KEY'] = st.secrets["OPENAI_API_KEY"]
+# os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY
 
 # Initialize session state for chat history
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 
-st.title('🌐 MertGPT')
-prompt = st.text_input(label='Want to know more about Mert? Ask below:)')
+st.markdown('# 🌐 MertGPT')
+st.markdown('Want to know more about Mert? Ask below')
+# prompt = st.text_input(label='Want to know more about Mert? Ask below:)')
 
-llm = OpenAI(temperature=0.9)
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.9)
 
 class ParagraphTextSplitter(TextSplitter):
     def split_text(self, text):
@@ -57,6 +60,7 @@ class ParagraphTextSplitter(TextSplitter):
 @st.cache_resource
 def load_pdf():
     pdf_name = st.secrets["pdf_path"]
+    # pdf_name = pdf_path
     loaders = [PyPDFLoader(pdf_name)]
     index = VectorstoreIndexCreator(
         vectorstore_cls=Chroma,
@@ -74,17 +78,27 @@ def get_best_matching_text(llm, index, query):
     print(f"Retrieved text: {result}")  # Print statement to log the retrieved text
     return result
 
-if prompt:
-    best_match_text = get_best_matching_text(llm, index, prompt)
-    st.session_state.chat_history.append({"user": prompt, "ai": best_match_text})
+with st.form(key='input_form', clear_on_submit=True):
+    col1, col2 = st.columns([8, 1])
+    with col1:
+        prompt = st.text_input(label="", label_visibility="collapsed")
+    with col2:
+        submit_button = st.form_submit_button(label='Ask')
+
+if submit_button and prompt:
+    with st.spinner('Generating response...'):
+        best_match_text = get_best_matching_text(llm, index, prompt)
+        st.session_state.chat_history.append({"user": prompt, "ai": best_match_text})
 
     # Save the chat history to Firestore
     db.collection('chat_history').add({
         'user': prompt,
-        'ai': best_match_text
+        'ai': best_match_text,
+        'timestamp': firestore.SERVER_TIMESTAMP
     })
 
-# Display chat history
-for chat in st.session_state.chat_history:
+# Display chat history in reverse order
+for chat in reversed(st.session_state.chat_history):
     st.chat_message('user').markdown(chat['user'])
     st.chat_message('assistant').markdown(chat['ai'])
+
